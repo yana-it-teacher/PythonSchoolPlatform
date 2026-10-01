@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Пітоніка | Навчальна платформа основ програмування Python для школярів</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ВЕРХНЯ ШАПКА / HEADER -->
+  <header class="app-header">
+    <div class="brand-wrap" onclick="window.app.switchTab('roadmap')">
+      <div class="brand-logo-icon">🐍</div>
+      <div class="brand-text">
+        <h1>Пітоніка</h1>
+        <p>Основи Python & Turtle для школярів</p>
+      </div>
+    </div>
+
+    <!-- Основне меню платформи -->
+    <nav class="header-nav">
+      <button class="nav-btn active" data-tab="roadmap">
+        <span>🗺️</span> Карта курсу
+      </button>
+      <button class="nav-btn" data-tab="workspace">
+        <span>💻</span> Робоча панель
+      </button>
+      <button class="nav-btn" data-tab="trainer">
+        <span>⚡</span> Тренажер синтаксису
+      </button>
+      <button class="nav-btn" data-tab="achievements">
+        <span>🏆</span> Досягнення
+      </button>
+      <button class="nav-btn" data-tab="teacher">
+        <span>👨‍🏫</span> Кабінет вчителя
+      </button>
+    </nav>
+
+    <!-- Профіль учня з рівнем та XP -->
+    <div class="header-profile-badge" onclick="window.app.openProfileModal()" title="Натисни, щоб змінити ім'я чи аватар">
+      <div class="student-avatar-wrap" id="header-student-avatar">🐢</div>
+      <div class="student-meta">
+        <div class="student-name-row">
+          <span class="student-name-text" id="header-student-name">Учень (5-А)</span>
+          <span class="student-level-tag" id="header-level-val">Рівень 1</span>
+        </div>
+        <div class="student-xp-bar-container">
+          <div class="xp-bar-track">
+            <div class="xp-bar-fill" id="header-xp-progress" style="width: 10%"></div>
+          </div>
+          <span id="header-xp-val" style="font-size: 11px; font-weight: bold; color: #059669;">0 XP</span>
+        </div>
+      </div>
+      <div class="header-gems-badge" title="Кристали за успіхи">
+        <span>💎</span> <span id="header-gems-val">20</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ОСНОВНИЙ КОНТЕНТ -->
+  <main class="main-content">
+
+    <!-- 1. ВКЛАДКА: КАРТА КУРСУ (ROADMAP) -->
+    <section id="view-roadmap" class="view-section active">
+      <div class="roadmap-container" id="roadmap-container">
+        <!-- Наповнюється з js/app.js -->
+      </div>
+    </section>
+
+    <!-- 2. ВКЛАДКА: РОБОЧА ПАНЕЛЬ УЧНЯ (WORKSPACE) -->
+    <section id="view-workspace" class="view-section">
+      <div class="workspace-wrapper">
+        
+        <!-- Верхній рядок уроку -->
+        <div class="workspace-topbar">
+          <div class="lesson-title-area">
+            <button class="btn btn-outline btn-small" onclick="window.app.goToPrevLesson()" title="Попередній урок">◀</button>
+            <h2 id="ws-lesson-title">Урок 1: Поняття алгоритму</h2>
+            <span class="lesson-tag" id="ws-lesson-badge">💻 Консоль</span>
+            <span class="lesson-tag" id="ws-lesson-status">⏳ В процесі</span>
+            <button class="btn btn-outline btn-small" onclick="window.app.goToNextLesson()" title="Наступний урок">▶</button>
+          </div>
+
+          <div class="workspace-top-actions">
+            <button class="btn btn-outline btn-small" onclick="window.app.resetCurrentCode()">
+              🔄 Початковий код
+            </button>
+            <button class="btn btn-outline btn-small" onclick="window.app.switchTab('roadmap')">
+              🗺️ До списку уроків
+            </button>
+          </div>
+        </div>
+
+        <!-- Головні панелі: Бічна панель з підказками + Редактор коду та Вивід -->
+        <div class="workspace-panels">
+          
+          <!-- Ліва бічна панель: Теорія, Підказки, Очікуваний результат -->
+          <aside class="workspace-sidebar">
+            <div class="sidebar-tabs">
+              <button class="sidebar-tab-btn active" data-tab="theory" onclick="window.app.switchSidebarTab('theory')">
+                📖 Теорія та завдання
+              </button>
+              <button class="sidebar-tab-btn" data-tab="hints" onclick="window.app.switchSidebarTab('hints')">
+                💡 Підказки
+              </button>
+              <button class="sidebar-tab-btn" data-tab="expected" onclick="window.app.switchSidebarTab('expected')">
+                🏁 Очікуваний результат
+              </button>
+            </div>
+
+            <div class="sidebar-content-area">
+              <div id="theory-tab-content" class="sidebar-pane active"></div>
+              <div id="hints-tab-content" class="sidebar-pane"></div>
+              <div id="expected-tab-content" class="sidebar-pane"></div>
+            </div>
+          </aside>
+
+          <!-- Права зона: Редактор Python коду та Панель результатів -->
+          <div class="workspace-editor-side">
+            
+            <!-- Панель дій редактора -->
+            <div class="editor-top-actions">
+              <div class="editor-tabs">
+                <span>🐍 main.py</span>
+                <small class="text-muted">(Автозбереження чернетки увімкнено)</small>
+              </div>
+
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-primary" onclick="window.app.runCode()">
+                  ▶️ Запустити код
+                </button>
+                <button class="btn btn-success" onclick="window.app.checkSolution()">
+                  ✅ Перевірити розв'язок
+                </button>
+                <button class="btn btn-outline btn-small" onclick="window.app.stopCode()">
+                  🛑 Стоп
+                </button>
+              </div>
+            </div>
+
+            <!-- Зона введення коду з номерами рядків -->
+            <div class="editor-wrapper">
+              <div class="line-numbers" id="line-numbers">1</div>
+              <textarea id="code-editor" class="code-textarea" spellcheck="false" placeholder="# Напиши свій код тут..."></textarea>
+            </div>
+
+            <!-- Блок зворотного зв'язку перевірки -->
+            <div id="validation-feedback-box" class="validation-box" style="display: none;"></div>
+
+            <!-- Нижня половина: Результати виконання (Черепашка / Консоль) -->
+            <div class="workspace-output-side">
+              <div class="output-header-tabs">
+                <div class="output-tab-group">
+                  <button class="output-tab-btn active" data-tab="turtle" onclick="window.app.switchOutputTab('turtle')">
+                    🐢 Графіка Turtle
+                  </button>
+                  <button class="output-tab-btn" data-tab="console" onclick="window.app.switchOutputTab('console')">
+                    💻 Консоль виведення
+                  </button>
+                </div>
+
+                <div class="output-tools">
+                  <button class="btn btn-outline btn-small" onclick="window.app.turtle.toggleGrid()">
+                    📐 Сітка (x, y)
+                  </button>
+                  <button class="btn btn-outline btn-small" onclick="window.app.clearConsole(); window.app.turtle.reset();">
+                    🧹 Очистити
+                  </button>
+                </div>
+              </div>
+
+              <!-- Вигляд Черепашки -->
+              <div class="output-pane-view" id="output-turtle-view">
+                <div class="turtle-canvas-container">
+                  <canvas id="turtle-canvas" width="680" height="340"></canvas>
+                </div>
+              </div>
+
+              <!-- Вигляд Консолі -->
+              <div class="output-pane-view" id="output-console-view" style="display: none;">
+                <div class="console-terminal" id="console-output">
+                  <div class="terminal-line line-info">Готово до виконання програми. Натисніть «Запустити код».</div>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 3. ВКЛАДКА: ТРЕНАЖЕР СИНТАКСИСУ -->
+    <section id="view-trainer" class="view-section">
+      <div class="trainer-container" id="trainer-view-container">
+        <!-- Наповнюється з js/syntax-trainer.js -->
+      </div>
+    </section>
+
+    <!-- 4. ВКЛАДКА: ДОСЯГНЕННЯ ТА ПРОФІЛЬ -->
+    <section id="view-achievements" class="view-section">
+      <div class="achievements-container" id="achievements-container">
+        <!-- Наповнюється з js/app.js -->
+      </div>
+    </section>
+
+    <!-- 5. ВКЛАДКА: КАБІНЕТ ВЧИТЕЛЯ (ADMIN) -->
+    <section id="view-teacher" class="view-section">
+      <div class="admin-container" id="admin-container">
+        <!-- Наповнюється з js/admin-teacher.js -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- СКРИПТИ -->
+  <script src="js/lessons-data.js"></script>
+  <script src="js/turtle-canvas.js"></script>
+  <script src="js/python-engine.js"></script>
+  <script src="js/gamification.js"></script>
+  <script src="js/syntax-trainer.js"></script>
+  <script src="js/admin-teacher.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
