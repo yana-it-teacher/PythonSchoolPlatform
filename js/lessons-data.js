@@ -1561,6 +1561,37 @@ print(f"Твій підсумковий результат: {score} з 3!")`,
   }
 ];
 
+// Позначаємо всі уроки 5 класу
+INITIAL_LESSONS.forEach(l => {
+  l.courseId = "grade5";
+});
+
+const COURSES = [
+  {
+    id: "grade5",
+    title: "Основи Python та Turtle",
+    gradeLabel: "5 клас",
+    icon: "🐢",
+    color: "#059669",
+    gradient: "linear-gradient(135deg, #10b981, #059669)",
+    lessonsCount: 25,
+    blocksCount: 5,
+    description: "Теорія алгоритмів, перші команди print(), лінійні програми, кольори Turtle та цикли for."
+  },
+  {
+    id: "grade6",
+    title: "Код Пригод: Python",
+    gradeLabel: "6 клас",
+    icon: "🛸",
+    color: "#4f46e5",
+    gradient: "linear-gradient(135deg, #6366f1, #06b6d4)",
+    lessonsCount: 19,
+    blocksCount: 4,
+    description: "Штучний інтелект для кібер-дрона, складні сенсори, цикл while, вкладені цикли та 2D-ігри."
+  }
+];
+
 // Експорт у глобальну область видимості
 window.COURSE_BLOCKS = COURSE_BLOCKS;
 window.INITIAL_LESSONS = INITIAL_LESSONS;
+window.COURSES = COURSES;

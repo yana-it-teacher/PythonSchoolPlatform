@@ -1,7 +1,7 @@
 /**
  * Панель адміністратора для вчителя:
- * - Додавання, редагування та видалення завдань курсу
- * - Перегляд журналу учнів та їхнього прогресу
+ * - Керування курсами 5 та 6 класів (фільтрація, додавання, редагування, видалення)
+ * - Журнал успішності учнів
  * - Експорт даних у CSV/JSON
  */
 
@@ -11,6 +11,7 @@ class TeacherAdmin {
     this.gamification = gamification;
     this.isAuthorized = false;
     this.adminPassKey = 'python_school_admin_pwd';
+    this.courseFilter = 'all'; // 'all' | 'grade5' | 'grade6'
   }
 
   getSavedPassword() {
@@ -46,7 +47,7 @@ class TeacherAdmin {
       <div class="admin-login-box">
         <div class="admin-shield-icon">🔐</div>
         <h2>Кабінет вчителя інформатики</h2>
-        <p>Для редагування навчального плану та перегляду журналу успішності введіть пароль доступу.</p>
+        <p>Для керування навчальним планом 5 і 6 класів та перегляду журналу введіть пароль.</p>
         
         <div class="form-group" style="margin-top: 20px;">
           <label>Пароль вчителя:</label>
@@ -61,7 +62,7 @@ class TeacherAdmin {
         <div id="login-error-msg" class="login-err-msg"></div>
 
         <div class="admin-info-note">
-          💡 <i>Підказка: Пароль за замовчуванням: <b>teacher123</b> або <b>вчитель</b>. Ви зможете змінити його всередині кабінету.</i>
+          💡 <i>Пароль за замовчуванням: <b>teacher123</b> або <b>вчитель</b>.</i>
         </div>
       </div>
     `;
@@ -101,8 +102,8 @@ class TeacherAdmin {
           <div class="admin-title">
             <span class="admin-badge-icon">👨‍🏫</span>
             <div>
-              <h2>Панель керування курсом (Вчитель)</h2>
-              <p>Керуйте 25 уроками, додавайте практичні завдання та аналізуйте успішність класу</p>
+              <h2>Панель керування курсами (Вчитель)</h2>
+              <p>Керування програмами 5 та 6 класів (Основи Python & Turtle та Код Пригод)</p>
             </div>
           </div>
 
@@ -164,18 +165,44 @@ class TeacherAdmin {
     }
   }
 
+  setCourseFilter(filter) {
+    this.courseFilter = filter;
+    const content = document.getElementById('admin-tab-content');
+    if (content) this.renderLessonsTab(content);
+  }
+
   // --- Вкладка уроків ---
   renderLessonsTab(content) {
-    const lessons = this.lessonsManager.getAllLessons();
+    const allLessons = this.lessonsManager.getAllLessons();
+    const g5Lessons = allLessons.filter(l => (l.courseId || 'grade5') === 'grade5');
+    const g6Lessons = allLessons.filter(l => l.courseId === 'grade6');
+
+    let filtered = allLessons;
+    if (this.courseFilter === 'grade5') filtered = g5Lessons;
+    if (this.courseFilter === 'grade6') filtered = g6Lessons;
 
     content.innerHTML = `
       <div class="admin-lessons-table-wrapper">
-        <div class="table-actions-bar">
+        <!-- Фільтр курсів -->
+        <div class="admin-course-filter-row">
+          <span style="font-size: 13px; font-weight: 700; color: var(--text-muted);">Фільтр за курсом:</span>
+          <button class="filter-pill ${this.courseFilter === 'all' ? 'active' : ''}" onclick="window.teacherAdmin.setCourseFilter('all')">
+            Усі уроки (${allLessons.length})
+          </button>
+          <button class="filter-pill ${this.courseFilter === 'grade5' ? 'active' : ''}" onclick="window.teacherAdmin.setCourseFilter('grade5')">
+            🐢 5 Клас: Turtle (${g5Lessons.length})
+          </button>
+          <button class="filter-pill ${this.courseFilter === 'grade6' ? 'active' : ''}" onclick="window.teacherAdmin.setCourseFilter('grade6')">
+            🛸 6 Клас: Код Пригод (${g6Lessons.length})
+          </button>
+        </div>
+
+        <div class="table-actions-bar" style="margin-top: 12px;">
           <div>
-            <b>Усього завдань: ${lessons.length}</b> (відповідно до 5 навчальних блоків)
+            <b>Показано завдань: ${filtered.length}</b>
           </div>
           <button class="btn btn-outline btn-small" onclick="window.teacherAdmin.confirmResetLessons()">
-            🔄 Скинути до базових 25 уроків
+            🔄 Скинути до стандартних (5 + 6 клас)
           </button>
         </div>
 
@@ -183,7 +210,8 @@ class TeacherAdmin {
           <thead>
             <tr>
               <th>№</th>
-              <th>Блок</th>
+              <th>Курс</th>
+              <th>Блок / Епізод</th>
               <th>Назва завдання</th>
               <th>Тип</th>
               <th>XP</th>
@@ -191,24 +219,32 @@ class TeacherAdmin {
             </tr>
           </thead>
           <tbody>
-            ${lessons.map(l => `
-              <tr>
-                <td><b>${l.num || l.id}</b></td>
-                <td><span class="badge-block">Блок ${l.blockId}</span></td>
-                <td>
-                  <div class="lesson-cell-title">${l.title}</div>
-                  <small class="text-muted">${(l.task || '').slice(0, 70)}...</small>
-                </td>
-                <td><span class="badge-type">${l.type || 'console'}</span></td>
-                <td><span class="badge-xp">+${l.xp || 50} XP</span></td>
-                <td>
-                  <div class="actions-cell">
-                    <button class="btn btn-small btn-primary" onclick="window.teacherAdmin.openEditLessonModal(${l.id})">✏️ Редагувати</button>
-                    <button class="btn btn-small btn-danger-outline" onclick="window.teacherAdmin.deleteLesson(${l.id})">🗑️</button>
-                  </div>
-                </td>
-              </tr>
-            `).join('')}
+            ${filtered.map(l => {
+              const isG6 = l.courseId === 'grade6';
+              return `
+                <tr>
+                  <td><b>${l.num || l.id}</b></td>
+                  <td>
+                    <span class="badge-grade-tag ${isG6 ? 'tag-g6' : 'tag-g5'}">
+                      ${isG6 ? '🛸 6 клас' : '🐢 5 клас'}
+                    </span>
+                  </td>
+                  <td><span class="badge-block">Блок ${l.blockId}</span></td>
+                  <td>
+                    <div class="lesson-cell-title">${l.title}</div>
+                    <small class="text-muted">${(l.story || l.task || '').slice(0, 70)}...</small>
+                  </td>
+                  <td><span class="badge-type">${l.type || 'console'}</span></td>
+                  <td><span class="badge-xp">+${l.xp || 50} XP</span></td>
+                  <td>
+                    <div class="actions-cell">
+                      <button class="btn btn-small btn-primary" onclick="window.teacherAdmin.openEditLessonModal(${l.id})">✏️ Редагувати</button>
+                      <button class="btn btn-small btn-danger-outline" onclick="window.teacherAdmin.deleteLesson(${l.id})">🗑️</button>
+                    </div>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
           </tbody>
         </table>
       </div>
@@ -236,15 +272,15 @@ class TeacherAdmin {
               <th>Учень</th>
               <th>Клас</th>
               <th>Досвід (XP)</th>
-              <th>Пройдено уроків</th>
-              <th>Прогрес курсу</th>
+              <th>Виконано завдань</th>
+              <th>Прогрес (від 44 робіт)</th>
               <th>Досягнення</th>
               <th>Остання активність</th>
             </tr>
           </thead>
           <tbody>
             ${roster.map(st => {
-              const pct = Math.round((st.completedCount / 25) * 100);
+              const pct = Math.round((st.completedCount / 44) * 100);
               return `
                 <tr>
                   <td>
@@ -253,12 +289,12 @@ class TeacherAdmin {
                       <b>${st.name}</b>
                     </div>
                   </td>
-                  <td>${st.grade || '5-А'}</td>
+                  <td>${st.grade || '6-А'}</td>
                   <td><b>${st.xp} XP</b></td>
-                  <td>${st.completedCount} з 25</td>
+                  <td>${st.completedCount} робіт</td>
                   <td>
                     <div class="table-progress-bar">
-                      <div class="table-progress-fill" style="width: ${pct}%"></div>
+                      <div class="table-progress-fill" style="width: ${Math.min(100, pct)}%"></div>
                     </div>
                     <small>${pct}%</small>
                   </td>
@@ -312,21 +348,23 @@ class TeacherAdmin {
     this.openLessonModal({
       id: Date.now(),
       num: nextNum,
-      blockId: 1,
-      title: "Новий практичний урок",
-      badge: "Практика",
-      type: "turtle",
+      courseId: this.courseFilter !== 'all' ? this.courseFilter : 'grade6',
+      blockId: 101,
+      title: "Нова практична місія",
+      badge: "Місія",
+      type: "interactive",
       xp: 80,
+      story: "Опиши захоплюючий сюжет місії для учнів...",
       theory: "### Теорія уроку\nОпиши головні поняття...",
       task: "Опиши завдання для учня...",
-      initialCode: "import turtle\n# Напиши свій код тут\n",
+      initialCode: "# Напиши свій код тут\n",
       expectedOutput: "Очікуваний результат...",
       hints: [
         "Підказка 1: Зверни увагу на...",
         "Підказка 2: Скористайся командою...",
         "Підказка 3: Зразок коду..."
       ],
-      sampleSolution: "import turtle\n# Зразок"
+      sampleSolution: "# Зразок"
     }, false);
   }
 
@@ -341,6 +379,8 @@ class TeacherAdmin {
     modal.className = 'modal-backdrop active';
     modal.id = 'lesson-editor-modal';
 
+    const courseId = lesson.courseId || 'grade5';
+
     modal.innerHTML = `
       <div class="modal-card modal-large">
         <div class="modal-header">
@@ -351,31 +391,39 @@ class TeacherAdmin {
         <div class="modal-body">
           <div class="form-row">
             <div class="form-group flex-1">
-              <label>Назва уроку:</label>
+              <label>Назва уроку / місії:</label>
               <input type="text" id="edit-lesson-title" class="form-control" value="${this.escapeHtml(lesson.title)}" />
             </div>
-            <div class="form-group" style="width: 140px;">
-              <label>Блок курсу:</label>
+            <div class="form-group" style="width: 170px;">
+              <label>Курс:</label>
+              <select id="edit-lesson-course" class="form-control" onchange="window.teacherAdmin.updateBlockOptions()">
+                <option value="grade5" ${courseId === 'grade5' ? 'selected' : ''}>🐢 5 клас (Turtle)</option>
+                <option value="grade6" ${courseId === 'grade6' ? 'selected' : ''}>🛸 6 клас (Код Пригод)</option>
+              </select>
+            </div>
+            <div class="form-group" style="width: 170px;">
+              <label>Блок / Епізод:</label>
               <select id="edit-lesson-block" class="form-control">
-                <option value="1" ${lesson.blockId == 1 ? 'selected' : ''}>Блок 1 (Алгоритми)</option>
-                <option value="2" ${lesson.blockId == 2 ? 'selected' : ''}>Блок 2 (Обчислення)</option>
-                <option value="3" ${lesson.blockId == 3 ? 'selected' : ''}>Блок 3 (Turtle)</option>
-                <option value="4" ${lesson.blockId == 4 ? 'selected' : ''}>Блок 4 (Умови)</option>
-                <option value="5" ${lesson.blockId == 5 ? 'selected' : ''}>Блок 5 (Цикли)</option>
+                <!-- Оновлюється динамічно -->
               </select>
             </div>
             <div class="form-group" style="width: 120px;">
               <label>Тип:</label>
               <select id="edit-lesson-type" class="form-control">
-                <option value="turtle" ${lesson.type === 'turtle' ? 'selected' : ''}>🐢 Turtle</option>
-                <option value="console" ${lesson.type === 'console' ? 'selected' : ''}>💻 Console</option>
                 <option value="interactive" ${lesson.type === 'interactive' ? 'selected' : ''}>⚡ Interactive</option>
+                <option value="console" ${lesson.type === 'console' ? 'selected' : ''}>💻 Console</option>
+                <option value="turtle" ${lesson.type === 'turtle' ? 'selected' : ''}>🐢 Turtle</option>
               </select>
             </div>
             <div class="form-group" style="width: 90px;">
               <label>XP:</label>
               <input type="number" id="edit-lesson-xp" class="form-control" value="${lesson.xp || 75}" />
             </div>
+          </div>
+
+          <div class="form-group">
+            <label>Сюжет місії (необов'язково, для 6 класу):</label>
+            <input type="text" id="edit-lesson-story" class="form-control" value="${this.escapeHtml(lesson.story || '')}" placeholder="Наприклад: Наш марсохід приземлився на незнайомій планеті..." />
           </div>
 
           <div class="form-group">
@@ -415,13 +463,31 @@ class TeacherAdmin {
     `;
 
     document.body.appendChild(modal);
+    this.updateBlockOptions(lesson.blockId);
+  }
+
+  updateBlockOptions(selectedBlockId = null) {
+    const courseSel = document.getElementById('edit-lesson-course');
+    const blockSel = document.getElementById('edit-lesson-block');
+    if (!courseSel || !blockSel) return;
+
+    const courseId = courseSel.value;
+    const blocks = this.lessonsManager.getBlocksByCourse(courseId);
+
+    blockSel.innerHTML = blocks.map(b => `
+      <option value="${b.id}" ${selectedBlockId == b.id ? 'selected' : ''}>
+        ${b.title}
+      </option>
+    `).join('');
   }
 
   saveLessonFromModal(lessonId, isEdit) {
     const title = document.getElementById('edit-lesson-title').value.trim();
+    const courseId = document.getElementById('edit-lesson-course').value;
     const blockId = Number(document.getElementById('edit-lesson-block').value);
     const type = document.getElementById('edit-lesson-type').value;
     const xp = Number(document.getElementById('edit-lesson-xp').value) || 50;
+    const story = document.getElementById('edit-lesson-story').value.trim();
     const theory = document.getElementById('edit-lesson-theory').value;
     const task = document.getElementById('edit-lesson-task').value;
     const initialCode = document.getElementById('edit-lesson-code').value;
@@ -434,10 +500,12 @@ class TeacherAdmin {
 
     const updatedData = {
       id: lessonId,
+      courseId,
       title,
       blockId,
       type,
       xp,
+      story,
       theory,
       task,
       initialCode,
@@ -464,10 +532,10 @@ class TeacherAdmin {
   }
 
   confirmResetLessons() {
-    if (confirm("Скинути всі уроки до початкових 25 уроків за програмою? Усі зміни буде повернуто до стандарту.")) {
+    if (confirm("Скинути всі уроки до початкових стандартів 5 та 6 класів?")) {
       this.lessonsManager.resetToDefaults();
       this.switchAdminTab('lessons');
-      alert("Курс скинуто до базових 25 уроків!");
+      alert("Курси 5 та 6 класів відновлено до стандартних!");
     }
   }
 
@@ -477,7 +545,7 @@ class TeacherAdmin {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `python_course_25_lessons_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `python_courses_5_and_6_grade_${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -511,7 +579,7 @@ class TeacherAdmin {
 
   exportRosterCSV() {
     const roster = this.gamification.getRoster();
-    let csv = "ID,Ім'я,Клас,XP,Виконано уроків,Бейджі,Остання активність\n";
+    let csv = "ID,Ім'я,Клас,XP,Виконано завдань,Бейджі,Остання активність\n";
     roster.forEach(st => {
       csv += `"${st.id}","${st.name}","${st.grade}",${st.xp},${st.completedCount},${st.badgesCount},"${st.lastActive}"\n`;
     });

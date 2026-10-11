@@ -1,6 +1,14 @@
 /**
- * Вбудований безпечний інтерпретатор Python для навчальних завдань школярів
- * Підтримує Turtle, print, input, змінні, if-else, цикли for, модуль random
+ * Вбудований безпечний інтерпретатор Python для навчальних завдань 5 та 6 класів
+ * Підтримує:
+ * - print, input, f-strings, змінні та типи даних
+ * - turtle графіка (HTML5 Canvas)
+ * - повне розгалуження: if, ланцюжки elif, else, вкладені if
+ * - цикли: for var in range(...), цикл while з безпечним лічильником ітерацій
+ * - оператори переривання: break, continue
+ * - накопичення: +=, -=, *=, /=
+ * - логічні зв'язки: and, or, not
+ * - випадкові числа: random.randint, random.choice
  */
 
 class PythonEngine {
@@ -27,7 +35,6 @@ class PythonEngine {
     if (this.turtle) this.turtle.reset();
 
     const lines = code.split('\n');
-    let outputLines = [];
 
     // Попередня валідація типових помилок школярів
     const syntaxErr = this.checkBasicSyntax(lines);
@@ -66,7 +73,7 @@ class PythonEngine {
         return `Рядок ${lineNum}: У Python команда 'print' пишеться лише маленькими літерами! Заміни 'Print' на 'print'.`;
       }
 
-      // Перевірка двокрапки в if, else, for
+      // Перевірка двокрапки в if, elif, else, for, while
       if (/^(if|elif|for|while)\b/.test(trimmed) && !trimmed.endsWith(':')) {
         return `Рядок ${lineNum}: Пропущено двокрапку ':' в кінці рядка '${trimmed}'. У Python після умов та циклів завжди ставиться ':'`;
       }
@@ -98,7 +105,7 @@ class PythonEngine {
     let i = startIndex;
 
     while (i < lines.length) {
-      if (this.stopped) return i;
+      if (this.stopped) return { nextIndex: i, flow: 'stop' };
 
       const raw = lines[i];
       const trimmed = raw.trim();
@@ -110,10 +117,18 @@ class PythonEngine {
 
       const indent = this.getIndent(raw);
       if (indent < targetIndent) {
-        return i; // Повертаємося до попереднього блоку
+        return { nextIndex: i, flow: 'normal' };
       }
 
-      // 1. Цикл for i in range(...)
+      // 0. Оператори break та continue
+      if (trimmed === 'break') {
+        return { nextIndex: i + 1, flow: 'break' };
+      }
+      if (trimmed === 'continue') {
+        return { nextIndex: i + 1, flow: 'continue' };
+      }
+
+      // 1. Цикл for var in range(...)
       const forMatch = trimmed.match(/^for\s+([a-zA-Z_]\w*)\s+in\s+range\((.*)\)\s*:$/);
       if (forMatch) {
         const varName = forMatch[1];
@@ -152,68 +167,133 @@ class PythonEngine {
         for (let val = start; (step > 0 ? val < stop : val > stop); val += step) {
           if (this.stopped) break;
           scope[varName] = val;
-          await this.executeBlock(bodyLines, 0, childIndent, scope);
+          const res = await this.executeBlock(bodyLines, 0, childIndent, scope);
+          if (res.flow === 'break') break;
+          if (res.flow === 'stop') return res;
         }
 
         i = bodyEnd;
         continue;
       }
 
-      // 2. Умовна конструкція if / elif / else
-      const ifMatch = trimmed.match(/^if\s+(.*):$/);
-      if (ifMatch) {
-        const conditionStr = ifMatch[1];
-        const isTrue = Boolean(this.evaluateCondition(conditionStr, scope));
+      // 2. Цикл while умова:
+      const whileMatch = trimmed.match(/^while\s+(.*):$/);
+      if (whileMatch) {
+        const condExpr = whileMatch[1];
 
-        // Збираємо тіло if
-        const ifStart = i + 1;
-        let ifEnd = ifStart;
-        while (ifEnd < lines.length) {
-          const r = lines[ifEnd];
-          if (!r.trim() || r.trim().startsWith('#')) { ifEnd++; continue; }
-          if (this.getIndent(r) <= indent) break;
-          ifEnd++;
-        }
-
-        const ifBody = lines.slice(ifStart, ifEnd);
-        let nextIndex = ifEnd;
-
-        // Перевіряємо, чи є далі elif або else
-        let elseBody = null;
-        if (nextIndex < lines.length && this.getIndent(lines[nextIndex]) === indent) {
-          const nextTrim = lines[nextIndex].trim();
-          if (nextTrim.startsWith('else:')) {
-            const elseStart = nextIndex + 1;
-            let elseEnd = elseStart;
-            while (elseEnd < lines.length) {
-              const r = lines[elseEnd];
-              if (!r.trim() || r.trim().startsWith('#')) { elseEnd++; continue; }
-              if (this.getIndent(r) <= indent) break;
-              elseEnd++;
-            }
-            elseBody = lines.slice(elseStart, elseEnd);
-            nextIndex = elseEnd;
+        // Знаходимо рядки тіла циклу
+        const bodyStart = i + 1;
+        let bodyEnd = bodyStart;
+        while (bodyEnd < lines.length) {
+          const bodyRaw = lines[bodyEnd];
+          const bodyTrimmed = bodyRaw.trim();
+          if (!bodyTrimmed || bodyTrimmed.startsWith('#')) {
+            bodyEnd++;
+            continue;
           }
+          if (this.getIndent(bodyRaw) <= indent) break;
+          bodyEnd++;
         }
 
-        if (isTrue) {
-          const childIndent = ifBody.length > 0 ? this.getIndent(ifBody[0]) : indent + 4;
-          await this.executeBlock(ifBody, 0, childIndent, scope);
-        } else if (elseBody) {
-          const childIndent = elseBody.length > 0 ? this.getIndent(elseBody[0]) : indent + 4;
-          await this.executeBlock(elseBody, 0, childIndent, scope);
+        const bodyLines = lines.slice(bodyStart, bodyEnd);
+        const childIndent = bodyLines.length > 0 ? this.getIndent(bodyLines[0]) : indent + 4;
+
+        // Захист від нескінченних циклів
+        let loopIterations = 0;
+        const MAX_LOOP = 5000;
+
+        while (Boolean(this.evaluateCondition(condExpr, scope))) {
+          if (this.stopped) break;
+          loopIterations++;
+          if (loopIterations > MAX_LOOP) {
+            throw new Error(`Можливе зациклення! Цикл while перевищив ліміт у ${MAX_LOOP} ітерацій. Перевір умову виходу з циклу.`);
+          }
+
+          const res = await this.executeBlock(bodyLines, 0, childIndent, scope);
+          if (res.flow === 'break') break;
+          if (res.flow === 'stop') return res;
         }
 
-        i = nextIndex;
+        i = bodyEnd;
         continue;
       }
 
-      // 3. Звичайна інструкція
+      // 3. Умовний блок if / elif / else
+      const ifMatch = trimmed.match(/^if\s+(.*):$/);
+      if (ifMatch) {
+        // Збираємо весь каскад: if ... [elif ...] ... [else ...]
+        const branches = [];
+        branches.push({ type: 'if', cond: ifMatch[1], lineIndex: i });
+
+        let scanIdx = i + 1;
+        let currentBranchLines = [];
+        let branchStartIdx = scanIdx;
+
+        while (scanIdx < lines.length) {
+          const r = lines[scanIdx];
+          const t = r.trim();
+          if (!t || t.startsWith('#')) {
+            scanIdx++;
+            continue;
+          }
+
+          const lineInd = this.getIndent(r);
+          if (lineInd === indent) {
+            if (t.startsWith('elif ') && t.endsWith(':')) {
+              // Зберігаємо попередній блок
+              branches[branches.length - 1].lines = lines.slice(branchStartIdx, scanIdx);
+              branches.push({ type: 'elif', cond: t.slice(5, -1).trim(), lineIndex: scanIdx });
+              branchStartIdx = scanIdx + 1;
+              scanIdx++;
+              continue;
+            } else if (t === 'else:') {
+              branches[branches.length - 1].lines = lines.slice(branchStartIdx, scanIdx);
+              branches.push({ type: 'else', cond: 'True', lineIndex: scanIdx });
+              branchStartIdx = scanIdx + 1;
+              scanIdx++;
+              continue;
+            } else {
+              break; // Звичайна команда того самого рівня
+            }
+          } else if (lineInd < indent) {
+            break; // Вихід на вищий рівень
+          }
+          scanIdx++;
+        }
+
+        branches[branches.length - 1].lines = lines.slice(branchStartIdx, scanIdx);
+
+        // Виконуємо першу гілку, чия умова є істинною
+        let executedAny = false;
+        for (let branch of branches) {
+          let condValue = false;
+          if (branch.type === 'else') {
+            condValue = !executedAny;
+          } else {
+            condValue = Boolean(this.evaluateCondition(branch.cond, scope));
+          }
+
+          if (condValue && !executedAny) {
+            executedAny = true;
+            const bLines = branch.lines || [];
+            const childIndent = bLines.length > 0 ? this.getIndent(bLines[0]) : indent + 4;
+            const res = await this.executeBlock(bLines, 0, childIndent, scope);
+            if (res.flow === 'break' || res.flow === 'continue' || res.flow === 'stop') {
+              return res;
+            }
+          }
+        }
+
+        i = scanIdx;
+        continue;
+      }
+
+      // 4. Звичайна інструкція
       await this.executeStatement(trimmed, scope);
       i++;
     }
 
-    return i;
+    return { nextIndex: i, flow: 'normal' };
   }
 
   async executeStatement(line, scope) {
@@ -231,7 +311,7 @@ class PythonEngine {
       const op = augMatch[2];
       const expr = augMatch[3];
       const val = this.evaluateExpression(expr, scope);
-      const curr = scope[varName] || 0;
+      const curr = scope[varName] !== undefined ? scope[varName] : 0;
       if (op === '+=') scope[varName] = curr + val;
       else if (op === '-=') scope[varName] = curr - val;
       else if (op === '*=') scope[varName] = curr * val;
@@ -448,7 +528,6 @@ class PythonEngine {
 
     // 1. f-string: f"Текст {var}"
     if (/^f["']/.test(clean)) {
-      const quote = clean[1];
       const content = clean.slice(2, -1);
       return content.replace(/\{([^}]+)\}/g, (match, p1) => {
         return this.evaluateExpression(p1, scope);
@@ -458,11 +537,10 @@ class PythonEngine {
     // 2. Рядковий літерал "текст" або 'текст'
     if ((clean.startsWith('"') && clean.endsWith('"')) || (clean.startsWith("'") && clean.endsWith("'"))) {
       let raw = clean.slice(1, -1);
-      // Символи \n, \t
       return raw.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
     }
 
-    // 3. Дублювання рядка: "*" * 15
+    // 3. Дублювання рядка: "*" * 15 або var * 15
     const repeatMatch = clean.match(/^((?:["'].*?["'])|[a-zA-Z_]\w*)\s*\*\s*(\d+|[a-zA-Z_]\w*)$/);
     if (repeatMatch) {
       const left = this.evaluateExpression(repeatMatch[1], scope);
@@ -480,6 +558,15 @@ class PythonEngine {
       return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 
+    // random.choice(list)
+    const choiceMatch = clean.match(/^random\.choice\((.*)\)$/);
+    if (choiceMatch) {
+      const listVal = this.evaluateExpression(choiceMatch[1], scope);
+      if (Array.isArray(listVal) && listVal.length > 0) {
+        return listVal[Math.floor(Math.random() * listVal.length)];
+      }
+    }
+
     // 5. Цілочисельне ділення // та остача %
     if (clean.includes('//')) {
       const parts = clean.split('//');
@@ -490,11 +577,9 @@ class PythonEngine {
 
     // 6. Безпечне обчислення з підстановкою змінних scope
     try {
-      // Підготовка контексту змінних
       const keys = Object.keys(scope);
       const values = Object.values(scope);
       
-      // Заміна операторів Python на JS еквіваленти
       let jsExpr = clean
         .replace(/==/g, '===')
         .replace(/!=/g, '!==')
@@ -502,7 +587,6 @@ class PythonEngine {
         .replace(/\bFalse\b/g, 'false')
         .replace(/\bNone\b/g, 'null');
 
-      // Підтримка int(), float(), str(), len()
       const funcContext = {
         int: (v) => parseInt(v, 10),
         float: (v) => parseFloat(v),
@@ -518,7 +602,6 @@ class PythonEngine {
       const fn = new Function(...allKeys, `return (${jsExpr});`);
       return fn(...allVals);
     } catch (e) {
-      // Якщо це просто назва змінної або числа
       if (scope[clean] !== undefined) return scope[clean];
       if (!isNaN(Number(clean))) return Number(clean);
       return clean;

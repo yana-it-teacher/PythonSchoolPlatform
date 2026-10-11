@@ -56,6 +56,24 @@ class SyntaxTrainer {
         tokens: ["turtle", ".", "fillcolor", "(", '"yellow"', ")"],
         shuffled: ['"yellow"', "fillcolor", ".", "(", "turtle", ")"],
         hint: "turtle.fillcolor(\"yellow\")"
+      },
+      {
+        title: "Склади цикл while зі зворотним відліком",
+        tokens: ["while", "fuel", ">", "0", ":"],
+        shuffled: [":", "fuel", "while", "0", ">"],
+        hint: "while умова : (обов'язкова двокрапка в кінці)"
+      },
+      {
+        title: "Склади оператор накопичення здобичі",
+        tokens: ["total", "+=", "gold"],
+        shuffled: ["gold", "total", "+="],
+        hint: "Змінна += значення (наприклад: total += gold)"
+      },
+      {
+        title: "Склади множинний вибір elif",
+        tokens: ["elif", "mode", "==", "2", ":"],
+        shuffled: ["2", "==", "elif", ":", "mode"],
+        hint: "elif змінна == значення : (з двокрапкою)"
       }
     ];
 
@@ -115,6 +133,28 @@ class SyntaxTrainer {
         ],
         correct: 0,
         explanation: "Заливка починається з begin_fill() і фіксується командою end_fill()."
+      },
+      {
+        question: "Як правильно записати цикл while з перевіркою умови?",
+        options: [
+          'while fuel > 0:',
+          'while fuel > 0',
+          'while (fuel > 0) do:',
+          'loop while fuel > 0:'
+        ],
+        correct: 0,
+        explanation: "Цикл while обов'язково закінчується двокрапкою ':'"
+      },
+      {
+        question: "Який оператор достроково зупиняє виконання циклу?",
+        options: [
+          'break',
+          'stop',
+          'exit',
+          'finish'
+        ],
+        correct: 0,
+        explanation: "Команда 'break' негайно виходить з поточного циклу."
       }
     ];
 
@@ -135,6 +175,13 @@ class SyntaxTrainer {
         taskHint: "Яке ключове слово починає цикл з лічильником?"
       },
       {
+        codePrefix: "",
+        codeSuffix: " fuel > 0:\n    fuel -= 10",
+        answer: "while",
+        options: ["while", "for", "if", "loop"],
+        taskHint: "Яке ключове слово створює цикл з передумовою?"
+      },
+      {
         codePrefix: "name = ",
         codeSuffix: '("Як тебе звати? ")',
         answer: "input",
@@ -147,6 +194,13 @@ class SyntaxTrainer {
         answer: "else",
         options: ["else", "then", "otherwise", "other"],
         taskHint: "Яке слово означає протилежну гілку в розгалуженні ('інакше')?"
+      },
+      {
+        codePrefix: "if role == 1:\n    pass\n",
+        codeSuffix: " role == 2:\n    pass",
+        answer: "elif",
+        options: ["elif", "elseif", "else", "then"],
+        taskHint: "Яке слово використовується для додаткової умови у множинному виборі?"
       },
       {
         codePrefix: "turtle.",

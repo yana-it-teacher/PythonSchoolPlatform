@@ -1,11 +1,11 @@
 /**
  * Головний контролер веб-застосунку "Пітоніка / PythonJunior"
- * Керує навігацією, картою курсу, робочою панеллю учня, редактором коду та валідацією
+ * Керує курсами 5 та 6 класів, картою курсу, робочою панеллю учня, редактором коду та валідацією
  */
 
 class LessonsManager {
   constructor() {
-    this.storageKey = 'python_school_lessons_v2';
+    this.storageKey = 'python_school_lessons_v3';
     this.lessons = [];
     this.load();
   }
@@ -15,6 +15,13 @@ class LessonsManager {
     if (raw) {
       try {
         this.lessons = JSON.parse(raw);
+        // Перевіряємо, чи є в базі уроки 6 класу; якщо ні - об'єднуємо
+        const has6th = this.lessons.some(l => l.courseId === 'grade6' || l.id >= 101);
+        if (!has6th && window.LESSONS_6TH_GRADE) {
+          const g6 = JSON.parse(JSON.stringify(window.LESSONS_6TH_GRADE));
+          this.lessons = [...this.lessons, ...g6];
+          this.save();
+        }
         return;
       } catch (e) {}
     }
@@ -26,12 +33,25 @@ class LessonsManager {
   }
 
   resetToDefaults() {
-    this.lessons = JSON.parse(JSON.stringify(window.INITIAL_LESSONS || []));
+    const g5 = JSON.parse(JSON.stringify(window.INITIAL_LESSONS || []));
+    const g6 = JSON.parse(JSON.stringify(window.LESSONS_6TH_GRADE || []));
+    this.lessons = [...g5, ...g6];
     this.save();
   }
 
   getAllLessons() {
     return this.lessons;
+  }
+
+  getLessonsByCourse(courseId) {
+    return this.lessons.filter(l => (l.courseId || 'grade5') === courseId);
+  }
+
+  getBlocksByCourse(courseId) {
+    if (courseId === 'grade6') {
+      return window.COURSE_BLOCKS_6TH || [];
+    }
+    return window.COURSE_BLOCKS || [];
   }
 
   getLessonById(id) {
@@ -66,7 +86,11 @@ class App {
   constructor() {
     this.lessonsManager = new LessonsManager();
     this.gamification = new GamificationManager();
-    this.currentLesson = this.lessonsManager.getAllLessons()[0];
+    this.currentCourseId = localStorage.getItem('python_school_active_course') || 'grade5';
+
+    // Встановлюємо перший урок для обраного курсу
+    const courseLessons = this.lessonsManager.getLessonsByCourse(this.currentCourseId);
+    this.currentLesson = courseLessons[0] || this.lessonsManager.getAllLessons()[0];
     this.currentTab = 'roadmap'; // 'roadmap' | 'workspace' | 'trainer' | 'achievements' | 'teacher'
 
     this.consoleLogs = [];
@@ -77,7 +101,6 @@ class App {
   }
 
   initDOM() {
-    // Встановлюємо глобальні екземпляри
     window.lessonsManager = this.lessonsManager;
     window.gamification = this.gamification;
     window.teacherAdmin = new TeacherAdmin(this.lessonsManager, this.gamification);
@@ -85,7 +108,6 @@ class App {
   }
 
   initEngines() {
-    // Ініціалізація Turtle та Python інтерпретатора
     const canvas = document.getElementById('turtle-canvas');
     if (canvas) {
       this.turtle = new TurtleGraphics('turtle-canvas');
@@ -101,7 +123,7 @@ class App {
   bindEvents() {
     // Навігаційні кнопки меню
     document.querySelectorAll('.nav-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', () => {
         const tab = btn.dataset.tab;
         if (tab) this.switchTab(tab);
       });
@@ -153,6 +175,40 @@ class App {
     }
   }
 
+  setCourse(courseId) {
+    this.currentCourseId = courseId;
+    localStorage.setItem('python_school_active_course', courseId);
+    
+    // Встановлюємо перший урок нового курсу
+    const courseLessons = this.lessonsManager.getLessonsByCourse(courseId);
+    if (courseLessons.length > 0) {
+      this.currentLesson = courseLessons[0];
+    }
+
+    this.updateHeaderCourseBadge();
+
+    if (this.currentTab === 'roadmap') {
+      this.renderRoadmap();
+    } else if (this.currentTab === 'workspace') {
+      this.renderWorkspace();
+    }
+
+    if (window.audioEffects) window.audioEffects.playClick();
+  }
+
+  updateHeaderCourseBadge() {
+    const badge = document.getElementById('header-course-indicator');
+    if (badge) {
+      if (this.currentCourseId === 'grade6') {
+        badge.innerHTML = '🛸 6 Клас: Код Пригод';
+        badge.className = 'header-course-badge course-badge-grade6';
+      } else {
+        badge.innerHTML = '🐢 5 Клас: Python & Turtle';
+        badge.className = 'header-course-badge course-badge-grade5';
+      }
+    }
+  }
+
   switchTab(tab) {
     this.currentTab = tab;
     document.querySelectorAll('.nav-btn').forEach(b => {
@@ -182,6 +238,7 @@ class App {
 
   render() {
     this.gamification.updateHeaderUI();
+    this.updateHeaderCourseBadge();
     this.switchTab(this.currentTab);
   }
 
@@ -190,21 +247,63 @@ class App {
     const container = document.getElementById('roadmap-container');
     if (!container) return;
 
-    const lessons = this.lessonsManager.getAllLessons();
+    const allLessons = this.lessonsManager.getAllLessons();
     const completed = this.gamification.profile.completedLessons;
-    const progressPct = Math.round((completed.length / Math.max(1, lessons.length)) * 100);
+
+    // Статистика за курсами
+    const lessons5 = allLessons.filter(l => (l.courseId || 'grade5') === 'grade5');
+    const done5 = lessons5.filter(l => completed.includes(l.id)).length;
+
+    const lessons6 = allLessons.filter(l => l.courseId === 'grade6');
+    const done6 = lessons6.filter(l => completed.includes(l.id)).length;
+
+    const currentLessons = this.currentCourseId === 'grade6' ? lessons6 : lessons5;
+    const currentBlocks = this.lessonsManager.getBlocksByCourse(this.currentCourseId);
+    const currentDone = this.currentCourseId === 'grade6' ? done6 : done5;
+    const progressPct = Math.round((currentDone / Math.max(1, currentLessons.length)) * 100);
+
+    const isG6 = this.currentCourseId === 'grade6';
 
     container.innerHTML = `
-      <div class="roadmap-hero">
+      <!-- Перемикач курсів (5 клас / 6 клас) -->
+      <div class="courses-nav-bar">
+        <div class="courses-nav-title">Оберіть навчальний курс:</div>
+        <div class="courses-pills-row">
+          <button class="course-pill-btn ${!isG6 ? 'active' : ''}" onclick="window.app.setCourse('grade5')">
+            <span class="course-pill-icon">🐢</span>
+            <div class="course-pill-text">
+              <span class="course-pill-grade">5 КЛАС</span>
+              <span class="course-pill-name">Основи Python та Turtle (25 уроків)</span>
+            </div>
+            <span class="course-pill-counter">${done5}/${lessons5.length}</span>
+          </button>
+
+          <button class="course-pill-btn ${isG6 ? 'active' : ''}" onclick="window.app.setCourse('grade6')">
+            <span class="course-pill-icon">🛸</span>
+            <div class="course-pill-text">
+              <span class="course-pill-grade">6 КЛАС</span>
+              <span class="course-pill-name">Код Пригод: Python (19 місій)</span>
+            </div>
+            <span class="course-pill-counter">${done6}/${lessons6.length}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Головний банер обраного курсу -->
+      <div class="roadmap-hero ${isG6 ? 'hero-grade6' : 'hero-grade5'}">
         <div class="roadmap-hero-text">
-          <h1>Курс «Основи Python та Turtle» 🚀</h1>
-          <p>25 захоплюючих інтерактивних уроків від перших алгоритмів до власних ігор та анімацій!</p>
+          <span class="course-badge-hero">${isG6 ? '🛸 6 Клас • 4 Епізоди' : '🐢 5 Клас • 5 Блоків'}</span>
+          <h1>${isG6 ? '«Код Пригод: Python 6 клас»' : '«Основи Python та Turtle»'}</h1>
+          <p>${isG6 
+            ? '19 сюжетних кібер-місій: штучний інтелект дрона, вкладені умови, нескінченна петля часу while та створення 2D-ігор!' 
+            : '25 інтерактивних уроків від перших алгоритмів до кольорової графіки Turtle та базових циклів.'
+          }</p>
         </div>
 
         <div class="roadmap-overall-card">
           <div class="overall-progress-title">
-            <span>Загальний прогрес курсу:</span>
-            <b>${completed.length} з ${lessons.length} уроків (${progressPct}%)</b>
+            <span>Прогрес курсу:</span>
+            <b>${currentDone} з ${currentLessons.length} (${progressPct}%)</b>
           </div>
           <div class="overall-progress-track">
             <div class="overall-progress-fill" style="width: ${progressPct}%"></div>
@@ -212,14 +311,15 @@ class App {
         </div>
       </div>
 
+      <!-- Блоки або Епізоди -->
       <div class="blocks-container">
-        ${window.COURSE_BLOCKS.map(block => {
-          const blockLessons = lessons.filter(l => l.blockId === block.id);
+        ${currentBlocks.map(block => {
+          const blockLessons = currentLessons.filter(l => l.blockId === block.id);
           const blockDone = blockLessons.filter(l => completed.includes(l.id)).length;
           const blockPct = Math.round((blockDone / Math.max(1, blockLessons.length)) * 100);
 
           return `
-            <div class="course-block-card">
+            <div class="course-block-card ${isG6 ? 'block-card-cyber' : ''}">
               <div class="block-header" style="background: ${block.gradient}">
                 <div class="block-header-info">
                   <span class="block-icon">${block.icon}</span>
@@ -241,11 +341,11 @@ class App {
                   return `
                     <div class="lesson-card ${isDone ? 'done' : ''} ${isCurrent ? 'current' : ''}" onclick="window.app.openLesson(${l.id})">
                       <div class="lesson-card-top">
-                        <span class="lesson-num">Урок ${l.num || l.id}</span>
+                        <span class="lesson-num">${l.badge || ('Урок ' + (l.num || l.id))}</span>
                         <span class="lesson-badge-type ${l.type}">${l.type === 'turtle' ? '🐢 Turtle' : l.type === 'interactive' ? '⚡ Інтерактив' : '💻 Консоль'}</span>
                       </div>
                       <h4 class="lesson-card-title">${l.title}</h4>
-                      <p class="lesson-card-desc">${(l.task || '').slice(0, 90)}...</p>
+                      <p class="lesson-card-desc">${(l.story || l.task || '').slice(0, 85)}...</p>
                       
                       <div class="lesson-card-bottom">
                         <span class="lesson-xp">+${l.xp || 50} XP</span>
@@ -268,6 +368,11 @@ class App {
     const lesson = this.lessonsManager.getLessonById(id);
     if (!lesson) return;
     this.currentLesson = lesson;
+    if (lesson.courseId && lesson.courseId !== this.currentCourseId) {
+      this.currentCourseId = lesson.courseId;
+      localStorage.setItem('python_school_active_course', this.currentCourseId);
+      this.updateHeaderCourseBadge();
+    }
     this.switchTab('workspace');
   }
 
@@ -282,14 +387,16 @@ class App {
     const badgeEl = document.getElementById('ws-lesson-badge');
     const statusEl = document.getElementById('ws-lesson-status');
 
-    if (titleEl) titleEl.textContent = `Урок ${l.num || l.id}: ${l.title}`;
-    if (badgeEl) badgeEl.textContent = l.type === 'turtle' ? '🐢 Turtle Графіка' : '💻 Консольна програма';
+    if (titleEl) {
+      titleEl.textContent = `${l.badge || ('Урок ' + (l.num || l.id))}: ${l.title}`;
+    }
+    if (badgeEl) badgeEl.textContent = l.type === 'turtle' ? '🐢 Turtle Графіка' : l.type === 'interactive' ? '⚡ Інтерактивна програма' : '💻 Консольна програма';
     if (statusEl) {
       statusEl.className = isDone ? 'lesson-tag tag-done' : 'lesson-tag tag-new';
       statusEl.innerHTML = isDone ? '✅ Виконано (+XP отримано)' : '⏳ В процесі';
     }
 
-    // Заповнення бічної панелі: Теорія, Завдання, Підказки, Очікуваний результат
+    // Заповнення бічної панелі: Теорія, Завдання, Сюжет, Підказки, Очікуваний результат
     this.renderSidebarContent();
 
     // Завантаження коду в редактор
@@ -300,7 +407,7 @@ class App {
       this.updateLineNumbers();
     }
 
-    // Перемикання вихідної панелі за замовчуванням (якщо turtle — показуємо полотно)
+    // Перемикання вихідної панелі за замовчуванням
     if (l.type === 'turtle') {
       this.switchOutputTab('turtle');
     } else {
@@ -319,6 +426,15 @@ class App {
 
     if (theoryContent) {
       theoryContent.innerHTML = `
+        ${l.story ? `
+          <div class="sidebar-section mission-story-card">
+            <div class="story-card-head">
+              <span>🛸 Сюжет місії:</span>
+            </div>
+            <p>${l.story}</p>
+          </div>
+        ` : ''}
+
         <div class="sidebar-section">
           <div class="section-title">📘 Теоретична довідка</div>
           <div class="theory-markdown">${this.formatMarkdown(l.theory || "")}</div>
@@ -476,19 +592,15 @@ class App {
 
     this.writeToConsole("🔍 Перевірка твого розв'язку...", 'info');
 
-    // 1. Запускаємо код для збору виведення та графічних дій
     const runResult = await this.python.run(code);
-
     if (!runResult.success) {
-      this.showValidationResult(false, "У твоєму коді є синтаксична помилка. Виправ її та спробуй ще раз!");
+      this.showValidationResult(false, "У твоєму коді є помилка виконання або синтаксису. Виправ її та спробуй ще раз!");
       return;
     }
 
-    // 2. Перевіряємо критерії валідації уроку
     const l = this.currentLesson;
     let isPassed = false;
     let message = "";
-
     const fullConsoleOutput = this.consoleLogs.join('\n');
 
     if (l.criteria) {
@@ -522,7 +634,6 @@ class App {
         }
       }
     } else {
-      // Якщо критерій не задано явно, перевіряємо відсутність помилок
       isPassed = true;
       message = "Завдання зараховано!";
     }
@@ -564,17 +675,17 @@ class App {
   }
 
   goToNextLesson() {
-    const lessons = this.lessonsManager.getAllLessons();
+    const lessons = this.lessonsManager.getLessonsByCourse(this.currentCourseId);
     const currIdx = lessons.findIndex(l => l.id === this.currentLesson.id);
     if (currIdx !== -1 && currIdx < lessons.length - 1) {
       this.openLesson(lessons[currIdx + 1].id);
     } else {
-      alert("Вітаємо! Ти дійшов до кінця курсу або останнього уроку!");
+      alert("Вітаємо! Ти дійшов до кінця цього курсу!");
     }
   }
 
   goToPrevLesson() {
-    const lessons = this.lessonsManager.getAllLessons();
+    const lessons = this.lessonsManager.getLessonsByCourse(this.currentCourseId);
     const currIdx = lessons.findIndex(l => l.id === this.currentLesson.id);
     if (currIdx > 0) {
       this.openLesson(lessons[currIdx - 1].id);
@@ -602,7 +713,7 @@ class App {
     if (fb) fb.style.display = 'none';
   }
 
-  // --- Інтерактивне діалогове вікно введення input() ---
+  // --- Інтерактивне введення даних input() ---
   showInputPrompt(promptText) {
     return new Promise((resolve) => {
       const modal = document.createElement('div');
@@ -658,7 +769,7 @@ class App {
         </div>
 
         <div class="profile-hero-info">
-          <h2>${p.name} <span class="profile-grade-pill">${p.grade || '5-А клас'}</span></h2>
+          <h2>${p.name} <span class="profile-grade-pill">${p.grade || '6-А клас'}</span></h2>
           <div class="profile-rank-line">
             <span class="rank-tag">${rank.icon} ${rank.title} (Рівень ${rank.level})</span>
             <span class="xp-tag">💎 ${p.xp} XP</span>
@@ -686,7 +797,7 @@ class App {
       <!-- Сітка бейджів -->
       <div class="achievements-section-title">
         <h3>🏆 Колекція досягнень (${p.badges.length} з ${this.gamification.allBadges.length})</h3>
-        <p>Виконуй практичні завдання, запускай цикли та тренуй синтаксис, щоб відкрити всі нагороди!</p>
+        <p>Виконуй практичні завдання 5 та 6 класів, запускай дрони і цикли, щоб відкрити всі нагороди!</p>
       </div>
 
       <div class="badges-grid">
@@ -710,7 +821,7 @@ class App {
 
   openProfileModal() {
     const p = this.gamification.profile;
-    const avatars = ['🐢', '🚀', '🤖', '🐱', '🦊', '🧙‍♂️', '⚡', '🌟', '🦄', '🎯'];
+    const avatars = ['🐢', '🛸', '🚀', '🤖', '🐱', '🦊', '🧙‍♂️', '⚡', '🌟', '🦄', '🎯', '👑'];
 
     const modal = document.createElement('div');
     modal.className = 'modal-backdrop active';
@@ -731,7 +842,15 @@ class App {
 
           <div class="form-group">
             <label>Клас (наприклад: 5-А, 6-Б):</label>
-            <input type="text" id="input-student-grade" class="form-control" value="${p.grade || '5-А'}" />
+            <input type="text" id="input-student-grade" class="form-control" value="${p.grade || '6-А'}" />
+          </div>
+
+          <div class="form-group">
+            <label>Основний навчальний курс:</label>
+            <select id="select-student-course" class="form-control">
+              <option value="grade5" ${this.currentCourseId === 'grade5' ? 'selected' : ''}>5 Клас: Основи Python та Turtle</option>
+              <option value="grade6" ${this.currentCourseId === 'grade6' ? 'selected' : ''}>6 Клас: Код Пригод (Кібер-дрон)</option>
+            </select>
           </div>
 
           <div class="form-group">
@@ -765,9 +884,13 @@ class App {
   saveProfileModal() {
     const name = document.getElementById('input-student-name').value.trim();
     const grade = document.getElementById('input-student-grade').value.trim();
+    const course = document.getElementById('select-student-course').value;
     const avatar = this._tempAvatar || this.gamification.profile.avatar;
 
     this.gamification.switchProfile(name, grade, avatar);
+    if (course !== this.currentCourseId) {
+      this.setCourse(course);
+    }
     document.getElementById('profile-modal').remove();
     this.renderAchievements();
     if (window.audioEffects) window.audioEffects.playSuccess();

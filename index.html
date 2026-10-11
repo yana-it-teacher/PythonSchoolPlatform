@@ -18,6 +18,12 @@
       </div>
     </div>
 
+    <!-- Швидкий перемикач курсу в шапці -->
+    <div class="header-course-switcher-pill" onclick="window.app.setCourse(window.app.currentCourseId === 'grade5' ? 'grade6' : 'grade5')" title="Натисніть для перемикання між 5 та 6 класом">
+      <span id="header-course-indicator" class="header-course-badge course-badge-grade5">🐢 5 Клас: Turtle</span>
+      <span class="switcher-arrow">⇄</span>
+    </div>
+
     <!-- Основне меню платформи -->
     <nav class="header-nav">
       <button class="nav-btn active" data-tab="roadmap">
@@ -218,6 +224,7 @@
 
   <!-- СКРИПТИ -->
   <script src="js/lessons-data.js"></script>
+  <script src="js/lessons-grade6.js"></script>
   <script src="js/turtle-canvas.js"></script>
   <script src="js/python-engine.js"></script>
   <script src="js/gamification.js"></script>

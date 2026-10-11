@@ -194,7 +194,13 @@ class GamificationManager {
       { id: 'star_sky', title: 'Зоряний навігатор', desc: 'Створити генератор зоряного неба', icon: '✨', xp: 90 },
       { id: 'perfectionist', title: 'Відмінник', desc: 'Завершити практичну роботу без жодної помилки', icon: '💎', xp: 100 },
       { id: 'halfway', title: 'Екватор курсу', desc: 'Виконати 12 уроків', icon: '⛰️', xp: 150 },
-      { id: 'course_grad', title: 'Випускник PythonJunior', desc: 'Пройти всі 25 уроків курсу!', icon: '🎓', xp: 300 }
+      { id: 'course_grad', title: 'Випускник PythonJunior', desc: 'Пройти всі 25 уроків курсу 5 класу!', icon: '🎓', xp: 300 },
+      // Досягнення 6 класу
+      { id: 'cyber_drone', title: 'Кібер-пілот', desc: 'Завершити Епізод 1: розгалуження та сенсори дрона', icon: '🛸', xp: 120 },
+      { id: 'base_auto', title: 'Автоматизатор бази', desc: 'Завершити Епізод 2: цикли for та накопичення (s += a)', icon: '🏗️', xp: 120 },
+      { id: 'time_loop', title: 'Володар петлі часу', desc: 'Опанувати цикл while та захист від помилок', icon: '⏳', xp: 130 },
+      { id: 'matrix_arch', title: 'Архітектор матриці', desc: 'Створити 2D-карту за допомогою вкладених циклів', icon: '🔲', xp: 140 },
+      { id: 'grade6_grad', title: 'Герой Коду Пригод', desc: 'Пройти всі 19 місій курсу 6 класу!', icon: '👑', xp: 350 }
     ];
 
     this.loadProfile();
@@ -335,6 +341,7 @@ class GamificationManager {
   }
 
   checkAchievementsAfterLesson(lessonId) {
+    // Досягнення 5 класу
     if (lessonId === 1 || lessonId === 3) this.unlockBadge('first_code');
     if (lessonId === 5) this.unlockBadge('turtle_start');
     if (lessonId === 10) this.unlockBadge('math_whiz');
@@ -342,8 +349,17 @@ class GamificationManager {
     if (lessonId === 20) this.unlockBadge('logic_master');
     if (lessonId === 21) this.unlockBadge('loop_rider');
     if (lessonId === 22) this.unlockBadge('star_sky');
-    if (this.profile.completedLessons.length >= 12) this.unlockBadge('halfway');
-    if (this.profile.completedLessons.length >= 25) this.unlockBadge('course_grad');
+    const grade5Done = this.profile.completedLessons.filter(id => id <= 25).length;
+    if (grade5Done >= 12) this.unlockBadge('halfway');
+    if (grade5Done >= 25) this.unlockBadge('course_grad');
+
+    // Досягнення 6 класу
+    if (lessonId === 106) this.unlockBadge('cyber_drone');
+    if (lessonId === 109) this.unlockBadge('base_auto');
+    if (lessonId === 115) this.unlockBadge('time_loop');
+    if (lessonId === 117 || lessonId === 118) this.unlockBadge('matrix_arch');
+    const grade6Done = this.profile.completedLessons.filter(id => id >= 101 && id <= 119).length;
+    if (grade6Done >= 19) this.unlockBadge('grade6_grad');
   }
 
   unlockBadge(badgeId) {
